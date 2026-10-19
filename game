@@ -1,0 +1,85 @@
+from pathlib import Path
+
+html = r'''<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Ghép Mảnh</title>
+<style>
+:root{--bg:#10182b;--panel:#19243d;--accent:#69e0c0;--text:#f5f7ff;--muted:#aab7d4}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,sans-serif;background:radial-gradient(circle at top,#243a60,#10182b 60%);color:var(--text);min-height:100vh;padding:24px}
+main{max-width:1050px;margin:auto}.top{text-align:center;margin-bottom:22px}.top h1{font-size:clamp(2rem,5vw,3.2rem);margin:0 0 6px}.top p{color:var(--muted);margin:0}
+.layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}.panel{background:rgba(25,36,61,.94);border:1px solid #344566;border-radius:20px;padding:18px;box-shadow:0 18px 40px #0003}
+h2{font-size:1.05rem;margin:0 0 12px}.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}.choice{border:2px solid transparent;border-radius:12px;background:#263653;color:white;padding:7px;cursor:pointer;text-align:left}.choice.active{border-color:var(--accent);box-shadow:0 0 0 2px #69e0c033}.choice img{width:100%;height:78px;object-fit:cover;border-radius:7px;display:block}.choice span{display:block;font-size:.85rem;margin:6px 2px 1px}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.btn{border:0;border-radius:11px;padding:10px 14px;background:var(--accent);color:#102137;font-weight:750;cursor:pointer}.btn.secondary{background:#2c3b5a;color:white;border:1px solid #526487}.hint{font-size:.86rem;color:var(--muted);line-height:1.5;margin:14px 0 0}
+.game-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}.stats{display:flex;gap:8px}.stat{background:#101a2d;border-radius:10px;padding:8px 12px;font-size:.9rem}.stat b{color:var(--accent)}
+.board-wrap{display:flex;justify-content:center}.board{width:min(100%,600px);aspect-ratio:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:4px;background:#0a1120;padding:5px;border-radius:14px;overflow:hidden}.piece{position:relative;border:2px solid #5c7196;border-radius:7px;overflow:hidden;cursor:grab;background:#263653;min-width:0;min-height:0;transition:border-color .15s,transform .15s}.piece img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}.piece.selected{border:4px solid #ffe66d;transform:scale(.97);z-index:2}.piece.correct{border-color:#69e0c0}.piece:focus-visible{outline:3px solid white;outline-offset:-4px}.message{margin-top:14px;text-align:center;color:var(--muted);min-height:26px}.message.win{color:var(--accent);font-weight:800;font-size:1.15rem}
+@media(max-width:760px){body{padding:14px}.layout{grid-template-columns:1fr}.choices{grid-template-columns:repeat(4,1fr)}.choice img{height:62px}.panel{padding:14px}}
+</style>
+</head>
+<body>
+<main>
+<header class="top"><h1>🧩 Ghép Mảnh Kỳ Diệu</h1><p>Chọn một bức tranh, rồi kéo thả các mảnh để ghép lại!</p></header>
+<div class="layout">
+<aside class="panel">
+<h2>🎨 Chọn hình ảnh</h2>
+<div class="choices" id="choices"></div>
+<h2 style="margin-top:20px">⚙️ Độ khó</h2>
+<div class="controls" style="margin-top:0">
+<button class="btn secondary difficulty" data-size="3">Dễ · 3×3</button>
+<button class="btn secondary difficulty" data-size="4">Vừa · 4×4</button>
+</div>
+<div class="controls"><button class="btn" id="shuffle">🔀 Trộn mảnh</button><button class="btn secondary" id="preview">👁 Xem hình mẫu</button></div>
+<p class="hint">Cách chơi: kéo một mảnh vào vị trí khác để đổi chỗ. Bạn cũng có thể nhấp lần lượt hai mảnh để đổi chỗ. Hãy ghép sao cho bức tranh hoàn chỉnh nhé!</p>
+</aside>
+<section class="panel">
+<div class="game-head"><h2 style="margin:0">🧩 Bàn ghép hình</h2><div class="stats"><div class="stat">Lượt: <b id="moves">0</b></div><div class="stat">Đúng: <b id="progress">0/9</b></div></div></div>
+<div class="board-wrap"><div class="board" id="board" aria-label="Bàn ghép mảnh"></div></div>
+<div class="message" id="message">Chọn hình và bắt đầu ghép thôi!</div>
+</section>
+</div>
+</main>
+<script>
+const pictures=[
+{name:'Núi & hồ',url:'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=85'},
+{name:'Biển xanh',url:'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=85'},
+{name:'Rừng xanh',url:'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=900&q=85'},
+{name:'Mèo đáng yêu',url:'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=900&q=85'},
+{name:'Vũ trụ',url:'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=900&q=85'},
+{name:'Thành phố',url:'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=900&q=85'},
+{name:'Hoa rực rỡ',url:'https://images.unsplash.com/photo-149出来?auto=format&fit=crop&w=900&q=85'},
+{name:'Thác nước',url:'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=900&q=85'}
+];
+// Replace one URL with a known valid flower photo URL.
+pictures[6].url='https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=900&q=85';
+const choices=document.getElementById('choices'),board=document.getElementById('board'),movesEl=document.getElementById('moves'),progressEl=document.getElementById('progress'),message=document.getElementById('message');
+let picture=0,size=3,order=[],moves=0,selected=null,preview=false,dragFrom=null;
+pictures.forEach((p,i)=>{const b=document.createElement('button');b.className='choice'+(i===0?' active':'');b.innerHTML=`<img src="${p.url}" alt=""><span>${p.name}</span>`;b.onclick=()=>{picture=i;document.querySelectorAll('.choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');newGame()};choices.appendChild(b)});
+function shuffleArray(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function newGame(){order=shuffleArray(Array.from({length:size*size},(_,i)=>i));moves=0;selected=null;preview=false;render()}
+function render(){
+ board.style.gridTemplateColumns=`repeat(${size},1fr)`;board.style.gridTemplateRows=`repeat(${size},1fr)`;board.innerHTML='';
+ order.forEach((piece,pos)=>{const el=document.createElement('div');el.className='piece';el.tabIndex=0;el.dataset.pos=pos;el.dataset.piece=piece;el.setAttribute('aria-label',`Mảnh ${piece+1}`);
+ const img=document.createElement('img');img.src=pictures[picture].url;img.alt='';img.draggable=false;
+ const x=piece%size,y=Math.floor(piece/size);img.style.width=`${size*100}%`;img.style.height=`${size*100}%`;img.style.maxWidth='none';img.style.maxHeight='none';img.style.objectFit='cover';img.style.position='absolute';img.style.left=`-${x*100}%`;img.style.top=`-${y*100}%`;
+ el.appendChild(img);if(piece===pos)el.classList.add('correct');if(selected===pos)el.classList.add('selected');
+ el.draggable=true;el.addEventListener('dragstart',e=>{dragFrom=pos;e.dataTransfer.setData('text/plain',String(pos))});el.addEventListener('dragover',e=>e.preventDefault());el.addEventListener('drop',e=>{e.preventDefault();const from=Number(e.dataTransfer.getData('text/plain'));swap(from,pos)});el.addEventListener('click',()=>clickPiece(pos));el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();clickPiece(pos)}});
+ board.appendChild(el)});
+ movesEl.textContent=moves;let correct=order.filter((v,i)=>v===i).length;progressEl.textContent=`${correct}/${size*size}`;
+ message.className='message';message.textContent=preview?'Hình mẫu đang được hiển thị — bấm “Xem hình mẫu” lần nữa để tắt.':'Nhấp hai mảnh hoặc kéo thả để đổi chỗ.';
+ if(correct===size*size){message.className='message win';message.textContent=`🎉 Tuyệt vời! Bạn đã ghép xong trong ${moves} lượt!`;}
+ if(preview){board.style.backgroundImage=`url("${pictures[picture].url}")`;board.style.backgroundSize='cover';board.querySelectorAll('.piece').forEach(el=>el.style.opacity='.25')}else{board.style.backgroundImage='none';board.querySelectorAll('.piece').forEach(el=>el.style.opacity='1')}
+}
+function clickPiece(pos){if(selected===null){selected=pos;render();return}if(selected===pos){selected=null;render();return}swap(selected,pos)}
+function swap(a,b){if(a===null||a===undefined||b===null||b===undefined||a===b)return;[order[a],order[b]]=[order[b],order[a]];moves++;selected=null;preview=false;render()}
+document.getElementById('shuffle').onclick=newGame;
+document.getElementById('preview').onclick=()=>{preview=!preview;render()};
+document.querySelectorAll('.difficulty').forEach(b=>b.onclick=()=>{size=Number(b.dataset.size);document.querySelectorAll('.difficulty').forEach(x=>x.classList.toggle('active',x===b));newGame()});
+newGame();
+</script>
+</body></html>'''
+# Fix accidental placeholder text in the source URL defensively.
+html = html.replace("https://images.unsplash.com/photo-149出来?auto=format&fit=crop&w=900&q=85", "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=900&q=85")
+path = Path("/mnt/data/game_ghep_manh.html")
+path.write_text(html, encoding="utf-8")
+print(f"Đã tạo game HTML tại: {path}")
